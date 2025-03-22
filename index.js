@@ -23,7 +23,7 @@ app.post('/webhooks/products/create', async (req, res) => {
     console.log(`Received webhook for new product: ${product.id} - ${product.title}`);
     
     // Process the new product
-    await collectionGenerator.processProduct(product);
+    await collectionGenerator.processProduct(product.id);
     
     res.status(200).send('OK');
   } catch (error) {

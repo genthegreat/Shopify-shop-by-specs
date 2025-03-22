@@ -171,11 +171,14 @@ async function runGraphQLQuery(query, variables = {}) {
  * @returns {Object} Product details
  */
 async function getProductByIdGraphQL(productId) {
+  console.log(`Getting product by ID: ${productId}`);
   // Ensure productId is in the proper format
-  let formattedId = productId;
-  if (!productId.startsWith("gid://")) {
-    formattedId = `gid://shopify/Product/${productId}`;
+  let formattedId = String(productId);
+  if (!formattedId.startsWith("gid://")) {
+    formattedId = `gid://shopify/Product/${formattedId}`;
   }
+
+  console.log(`Formatted ID: ${formattedId}`);
 
   const query = `
     {
@@ -205,6 +208,8 @@ async function getProductByIdGraphQL(productId) {
   `;
 
   const result = await runGraphQLQuery(query);
+
+  console.log(`Result: ${JSON.stringify(result, null, 2)}`);
 
   if (result && result.product) {
     // Transform the variants structure to match REST API format
