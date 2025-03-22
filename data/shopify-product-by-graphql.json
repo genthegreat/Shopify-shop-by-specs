@@ -1,0 +1,37 @@
+{
+  "data": {
+    "product": {
+      "title": "2013 Genie Z45/25J Articulating Boom Lift",
+      "handle": "2013-genie-z45-25j-articulating-boom-lift",
+      "productType": "Boom Lifts",
+      "vendor": "Genie",
+      "status": "ACTIVE",
+      "tags": [],
+      "options": [
+        {
+          "id": "gid://shopify/ProductOption/10723891183782",
+          "name": "Title",
+          "values": ["Default Title"]
+        }
+      ],
+      "metafields": {
+        "edges": [
+          { "node": { "key": "fuel_type", "value": "Diesel" } },
+          { "node": { "key": "size_item", "value": "30' - 46'" } },
+          { "node": { "key": "Condition", "value": "Used" } }
+        ]
+      }
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 8,
+      "actualQueryCost": 6,
+      "throttleStatus": {
+        "maximumAvailable": 2000.0,
+        "currentlyAvailable": 1994,
+        "restoreRate": 100.0
+      }
+    }
+  }
+}
