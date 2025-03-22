@@ -10,6 +10,7 @@ const getRawBody = require("raw-body");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.SHOPIFY_WEBHOOK_SECRET;
+const SITE_URL = process.env.SITE_URL;
 
 // Middleware
 app.use(cors());
@@ -118,11 +119,24 @@ app.get("/", (req, res) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(
-    `Visit http://localhost:${PORT}/process-existing-products to process all existing products`
-  );
-  console.log(
-    `Visit http://localhost:${PORT}/register-webhooks?url=YOUR_SERVER_URL to register webhooks`
-  );
+    console.log(`Server running on port ${PORT}`);
+    
+    // Check if production or development
+    if (process.env.NODE_ENV === 'production') {
+        console.log(`Production environment detected`);
+        console.log(
+          `Visit ${SITE_URL}/process-existing-products to process all existing products`
+        );
+        console.log(
+          `Visit ${SITE_URL}/register-webhooks?url=${SITE_URL} to register webhooks`
+        );
+    } else {
+        console.log(`Development environment detected`);
+        console.log(
+          `Visit http://localhost:${PORT}/process-existing-products to process all existing products`
+        );
+        console.log(
+          `Visit http://localhost:${PORT}/register-webhooks?url=${SITE_URL} to register webhooks`
+        );
+    }   
 });
