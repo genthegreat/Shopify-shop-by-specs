@@ -30,7 +30,7 @@ async function createSmartCollection(collectionDetails) {
         smart_collection: {
           title: collectionDetails.title,
           rules: collectionDetails.rules,
-          disjunctive: true, // Products only need to match any rule
+          disjunctive: false, // Products must match all rules
           published: true,
         },
       },
