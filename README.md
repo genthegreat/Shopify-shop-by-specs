@@ -2,15 +2,15 @@
 
 This Node.js application automatically creates "Shop by Attributes" smart collections for Shopify products based on five key attributes:
 
+- Product Type (Mandatory)
 - Condition
 - Vendor
-- Product Type
 - Size
 - Fuel Type
 
 ## Features
 
-- Creates smart collections for all possible combinations of product attributes (up to 31 combinations per product)
+- Creates smart collections for all possible combinations of product attributes (up to 16 combinations per product)
 - Avoids creating duplicate collections by checking existing collections against new ones
 - Processes new products via Shopify webhooks
 - Can process all existing products in the store
@@ -40,6 +40,7 @@ This Node.js application automatically creates "Shop by Attributes" smart collec
    SHOPIFY_STORE=your-store-name
    SHOPIFY_ACCESS_TOKEN=your-access-token
    PORT=3000 # optional, defaults to 3000
+   SHOPIFY_WEBHOOK_SECRET=your-webhook-secret
    ```
 
 ## Usage
@@ -47,7 +48,7 @@ This Node.js application automatically creates "Shop by Attributes" smart collec
 ### Start the server:
 
 ```
-node index.js
+node start
 ```
 
 ### Process all existing products:
@@ -67,20 +68,21 @@ In your Shopify admin:
    - Event: Product creation
    - Format: JSON
    - URL: https://your-server-url.com/webhooks/products/create
+4. Obtain your web secret from the webhooks settings marked "All your webhooks will be signed..."
 
 ## How It Works
 
 1. The app extracts five attributes from each product:
-   - Condition (from tags with format "condition:value")
+   - Condition (from product metafields with key "condition" or "Condition")
    - Vendor (from product vendor field)
    - Product Type (from product type field)
-   - Size (from variant options)
-   - Fuel Type (from tags with format "fuel_type:value")
+   - Size (from product metafields with key "size_item" or "size")
+   - Fuel Type (from product metafields with key "fuel_type")
 
-2. It generates all possible combinations of these attributes (2^5 - 1 = 31 combinations)
+2. It generates combinations of these attributes with Product Type being mandatory and the other 4 attributes being optional (2^4 = 16 possible combinations per product)
 
 3. For each combination, it:
-   - Creates a title in the format "Shop by attribute1: value1, attribute2: value2, ..."
+   - Creates a title by joining the attribute values in a specific order
    - Creates appropriate rules for the Shopify Smart Collection
    - Checks if a similar collection already exists
    - Creates the collection if it doesn't exist
@@ -91,11 +93,11 @@ In your Shopify admin:
 
 The app extracts product attributes as follows:
 
-- `condition`: From custom metafield definitions where the name "condition"
+- `condition`: From product metafields with key "condition" or "Condition"
 - `vendor`: From the product's vendor field
-- `product_type`: From the product's product_type field
-- `size`: From custom metafield definitions where the name is "Size"
-- `fuel_type`: From custom metafield definitions where the name "fuel_type"
+- `product_type`: From the product's productType or product_type field
+- `size`: From product metafields with key "size_item" or "size"
+- `fuel_type`: From product metafields with key "fuel_type"
 
 ### Smart Collection Rules
 
@@ -103,14 +105,14 @@ Smart collections are created with rules based on these attributes:
 
 - Vendor: Matches the vendor field
 - Product Type: Matches the product type field
-- Condition/Fuel/Size Type: Matches specific custom metafield definitions
+- Condition/Fuel/Size Type: Matches specific product metafield definition
 
 ## Troubleshooting
 
 - **API Rate Limits**: Shopify has API rate limits. If processing many products, the app may hit these limits.
 - **Missing Collections**: Ensure products have the expected attributes in the correct format.
-- **Webhook Errors**: Verify your server is publicly accessible and the webhook URL is correct.
+- **Webhook Errors**: Verify your server is publicly accessible and the webhook URL is correct. Also, ensure your webhook secret is set in the `.env` file or the webhook requests won't be processed.
 
 ## License
 
-ISC 
+MIT
