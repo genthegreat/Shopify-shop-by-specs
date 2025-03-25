@@ -332,6 +332,28 @@ async function getProductsGraphQL(cursor = null, first = 50) {
   return await runGraphQLQuery(query);
 }
 
+/**
+ * Delete a smart collection
+ * @param {String} collectionId - The ID of the collection to delete
+ * @returns {Object} Response data
+ */
+async function deleteSmartCollection(collectionId) {
+  try {
+    const response = await axios.delete(
+      `${shopifyApiUrl}/smart_collections/${collectionId}.json`,
+      { headers: shopifyHeaders }
+    );
+    
+    return response.data;
+  } catch (error) {
+    console.error(
+      `Error deleting smart collection ${collectionId}:`,
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+}
+
 module.exports = {
   createSmartCollection,
   getExistingSmartCollections,
@@ -340,4 +362,5 @@ module.exports = {
   registerProductCreationWebhook,
   runGraphQLQuery,
   getProductsGraphQL,
+  deleteSmartCollection,
 };

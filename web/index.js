@@ -112,6 +112,17 @@ app.get("/register-webhooks", async (req, res) => {
   }
 });
 
+// Route to delete all duplicate collections
+app.get("/delete-duplicate-collections", async (req, res) => {
+  try {
+    await collectionGenerator.cleanupDuplicateCollections();
+    res.status(200).send("Duplicate collections deleted successfully");
+  } catch (error) {
+    console.error("Error deleting duplicate collections:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check route
 app.get("/", (req, res) => {
   res.status(200).send("Shop by Specs app is running!");
@@ -125,5 +136,8 @@ app.listen(PORT, () => {
     );
     console.log(
       `Visit ${SITE_URL}/register-webhooks?url=${SITE_URL} to register webhooks`
+    );
+    console.log(
+      `Visit ${SITE_URL}/delete-duplicate-collections to delete duplicate collections`
     );
 });
