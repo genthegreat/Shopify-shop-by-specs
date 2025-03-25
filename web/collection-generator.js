@@ -388,6 +388,110 @@ async function getProductMetafieldDefinitions() {
   }
 }
 
+/**
+ * Find and remove duplicate smart collections
+ */
+async function cleanupDuplicateCollections() {
+  try {
+    console.log("Starting duplicate collection cleanup...");
+    
+    // Get all smart collections
+    const allCollections = await shopifyApi.getExistingSmartCollections();
+    console.log(`Found ${allCollections.length} smart collections total`);
+    
+    // Group collections by their rule configurations
+    const collectionsByRules = {};
+    
+    // Process each collection
+    for (const collection of allCollections) {
+      // Skip collections without rules
+      if (!collection.rules || collection.rules.length === 0) continue;
+      
+      // Create a unique key representing this rule set
+      // Sort the rules to ensure consistent key generation
+      const sortedRules = [...collection.rules].sort((a, b) => {
+        // First sort by column
+        if (a.column < b.column) return -1;
+        if (a.column > b.column) return 1;
+        
+        // Then by condition
+        if (a.condition < b.condition) return -1;
+        if (a.condition > b.condition) return 1;
+        
+        return 0;
+      });
+      
+      // Generate a string key from the rule set
+      const ruleKey = sortedRules.map(rule => 
+        `${rule.column}:${rule.relation}:${rule.condition}${rule.condition_object_id ? ':' + rule.condition_object_id : ''}`
+      ).join('|');
+      
+      // Add to our grouping
+      if (!collectionsByRules[ruleKey]) {
+        collectionsByRules[ruleKey] = [];
+      }
+      collectionsByRules[ruleKey].push(collection);
+    }
+    
+    // Find and remove duplicates
+    const collectionsToDelete = [];
+    
+    for (const ruleKey in collectionsByRules) {
+      const collectionsWithSameRules = collectionsByRules[ruleKey];
+      
+      // If there are multiple collections with the same rules
+      if (collectionsWithSameRules.length > 1) {
+        console.log(`Found ${collectionsWithSameRules.length} collections with identical rules:`);
+        
+        // Sort by creation date or ID to keep the oldest/first one
+        collectionsWithSameRules.sort((a, b) => {
+          // If we have created_at timestamps, use those
+          if (a.created_at && b.created_at) {
+            return new Date(a.created_at) - new Date(b.created_at);
+          }
+          // Otherwise sort by ID (assuming lower ID = older)
+          return parseInt(a.id) - parseInt(b.id);
+        });
+        
+        // Keep the first one, mark the rest for deletion
+        const keepCollection = collectionsWithSameRules[0];
+        console.log(`Keeping: "${keepCollection.title}" (ID: ${keepCollection.id})`);
+        
+        for (let i = 1; i < collectionsWithSameRules.length; i++) {
+          const dupeCollection = collectionsWithSameRules[i];
+          console.log(`Will delete: "${dupeCollection.title}" (ID: ${dupeCollection.id})`);
+          collectionsToDelete.push(dupeCollection.id);
+        }
+      }
+    }
+    
+    // Delete the duplicate collections
+    if (collectionsToDelete.length > 0) {
+      console.log(`\nDeleting ${collectionsToDelete.length} duplicate collections...`);
+      
+      // Delete collections one by one to avoid rate limits
+      for (const collectionId of collectionsToDelete) {
+        try {
+          await shopifyApi.deleteSmartCollection(collectionId);
+          console.log(`Deleted collection ID: ${collectionId}`);
+          
+          // Add a small delay to avoid hitting rate limits
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          console.error(`Error deleting collection ${collectionId}:`, error.message);
+        }
+      }
+      
+      console.log("Cleanup complete!");
+    } else {
+      console.log("No duplicate collections found!");
+    }
+    
+  } catch (error) {
+    console.error("Error cleaning up collections:", error);
+  }
+}
+
 module.exports = {
   processProduct,
   processAllExistingProducts,
@@ -396,4 +500,5 @@ module.exports = {
   doesSimilarCollectionExist,
   extractProductAttributes,
   getProductMetafieldDefinitions,
+  cleanupDuplicateCollections
 };
