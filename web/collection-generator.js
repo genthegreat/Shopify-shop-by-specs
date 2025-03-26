@@ -1,13 +1,11 @@
 const shopifyApi = require("./shopify-api");
 
-/* FUNCTIONS NEED FIXING AS WE'RE USING CUSTOM METAFIELDS NOW */
-
 // Attributes we're tracking for combinations
 const PRODUCT_ATTRIBUTES = [
   "condition",
   "vendor",
   "product_type",
-  "size",
+  "size_item",
   "fuel_type",
 ];
 
@@ -36,7 +34,7 @@ function extractProductAttributes(product) {
       if (key === "Condition" || key.toLowerCase() === "condition") {
         attributes.condition = value;
       } else if (key === "size_item" || key.toLowerCase() === "size") {
-        attributes.size = value;
+        attributes.size_item = value;
       } else if (key === "fuel_type") {
         attributes.fuel_type = value;
       }
@@ -118,7 +116,7 @@ function createCollectionDetails(combination, metafieldDefinitions = {}) {
   // Define the desired order of attributes
   const attributeOrder = [
     "condition",
-    "size",
+    "size_item",
     "vendor",
     "fuel_type",
     "product_type",
@@ -145,6 +143,29 @@ function createCollectionDetails(combination, metafieldDefinitions = {}) {
   // Create title using the ordered values
   const title = attrEntries.map(([_, value]) => value).join(" ");
 
+  // Create handle parts for easier construction of standardized handles
+  const handleParts = {};
+  
+  // Process each attribute for the handle
+  attrEntries.forEach(([attr, value]) => {
+    // Convert the value to a handle-friendly format
+    const handleValue = value.toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters except spaces and hyphens
+      .replace(/\s+/g, '-')     // Replace spaces with hyphens
+      .replace(/-+/g, '-')      // Remove consecutive hyphens
+      .trim();                   // Trim whitespace
+    
+    // Store in our handle parts object
+    handleParts[attr] = handleValue;
+  });
+  
+  // Create a standardized handle that always follows our attribute order
+  // This way we ensure consistent handles regardless of how collections are created
+  const handle = attributeOrder
+    .filter(attr => handleParts[attr]) // Only include attributes that exist
+    .map(attr => handleParts[attr])    // Get the handle-friendly value
+    .join('-');                        // Join with hyphens
+  
   // Create rules for the smart collection
   const rules = attrEntries
     .map(([attr, value]) => {
@@ -163,7 +184,7 @@ function createCollectionDetails(combination, metafieldDefinitions = {}) {
           };
         case "condition":
         case "fuel_type":
-        case "size":
+        case "size_item":
           // Check if we have a metafield definition for this attribute
           if (metafieldDefinitions[attr]) {
             return {
@@ -179,7 +200,7 @@ function createCollectionDetails(combination, metafieldDefinitions = {}) {
     })
     .filter((rule) => rule !== null);
 
-  return { title, rules };
+  return { title, handle, rules };
 }
 
 /**
@@ -372,7 +393,7 @@ async function getProductMetafieldDefinitions() {
       if (key === "Condition" || key.toLowerCase() === "condition") {
         definitionsMap.condition = numericId;
       } else if (key === "size_item") {
-        definitionsMap.size = numericId;
+        definitionsMap.size_item = numericId;
       } else if (key === "fuel_type") {
         definitionsMap.fuel_type = numericId;
       } else {
@@ -492,6 +513,196 @@ async function cleanupDuplicateCollections() {
   }
 }
 
+/**
+ * Get related collections for a given collection handle
+ * @param {String} collectionHandle - The handle of the current collection
+ * @returns {Object} Related collections organized by tab category
+ */
+async function getRelatedCollections(collectionHandle) {
+  try {
+    // Step 1: Get the current collection details
+    const collection = await shopifyApi.getCollectionByHandle(collectionHandle);
+    if (!collection) {
+      throw new Error(`Collection not found with handle: ${collectionHandle}`);
+    }
+
+    // Step 2: Parse the collection attributes from title and rules
+    const collectionAttributes = await parseCollectionAttributes(collection);
+    
+    // Step 3: Get all collections
+    const allCollections = await shopifyApi.getExistingSmartCollections();
+    
+    // Step 4: Organize related collections by category
+    const related = {
+      byCategory: [],
+      byManufacturer: [],
+      bySizeItem: [],
+      bySpecs: {
+        condition: [],
+        fuelType: []
+      },
+      parts: []
+    };
+
+    // Get product type (category)
+    const productType = collectionAttributes.product_type || '';
+    
+    // Calculate parent category (remove most specific attribute)
+    let parentCategory;
+    if (productType) {
+      // Basic parent is just the product type
+      parentCategory = productType;
+    }
+
+    // Get collections by category
+    for (const otherCollection of allCollections) {
+      const otherAttributes = parseCollectionAttributes(otherCollection);
+      
+      // Skip the current collection
+      if (otherCollection.handle === collectionHandle) continue;
+      
+      // Category tab: collections that share the product type but have different attributes
+      if (otherAttributes.product_type === productType) {
+        related.byCategory.push({
+          title: otherCollection.title,
+          handle: otherCollection.handle,
+          image: otherCollection.image ? otherCollection.image.src : null
+        });
+      }
+      
+      // Manufacturer tab: if collection doesn't have a vendor filter but current collection has product type
+      if (!collectionAttributes.vendor && productType && 
+          otherAttributes.product_type === productType &&
+          otherAttributes.vendor) {
+        related.byManufacturer.push({
+          title: otherAttributes.vendor,
+          handle: otherCollection.handle,
+          image: otherCollection.image ? otherCollection.image.src : null
+        });
+      }
+      
+      // Height tab: if collection doesn't have a size filter but current collection has product type
+      if (!collectionAttributes.size_item && productType &&
+          otherAttributes.product_type === productType &&
+          otherAttributes.size_item) {
+        related.bySizeItem.push({
+          title: otherAttributes.size_item,
+          handle: otherCollection.handle,
+          image: otherCollection.image ? otherCollection.image.src : null
+        });
+      }
+      
+      // Specs - Condition: if collection doesn't have a condition filter but current collection has product type
+      if (!collectionAttributes.condition && productType &&
+          otherAttributes.product_type === productType &&
+          otherAttributes.condition) {
+        related.bySpecs.condition.push({
+          title: otherAttributes.condition,
+          handle: otherCollection.handle,
+          image: otherCollection.image ? otherCollection.image.src : null
+        });
+      }
+      
+      // Specs - Fuel Type: if collection doesn't have a fuel_type filter but current collection has product type
+      if (!collectionAttributes.fuel_type && productType &&
+          otherAttributes.product_type === productType &&
+          otherAttributes.fuel_type) {
+        related.bySpecs.fuelType.push({
+          title: otherAttributes.fuel_type,
+          handle: otherCollection.handle,
+          image: otherCollection.image ? otherCollection.image.src : null
+        });
+      }
+    }
+    
+    // Always include parts collections
+    related.parts = [
+      { title: "Genie Parts", handle: "genie-parts" },
+      { title: "JLG Parts", handle: "jlg-parts" },
+      { title: "Skyjack Parts", handle: "skyjack-parts" },
+      { title: "Haulage Parts", handle: "haulage-parts" }
+    ];
+    
+    return related;
+  } catch (error) {
+    console.error(`Error getting related collections for ${collectionHandle}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Parse collection attributes from collection object
+ * @param {Object} collection - Shopify collection object
+ * @returns {Object} Parsed attributes
+ */
+async function parseCollectionAttributes(collection) {
+  const attributes = {
+    product_type: '',
+    vendor: '',
+    condition: '',
+    size_item: '',
+    fuel_type: ''
+  };
+  
+  // Get metafield definitions mapping
+  const metafieldDefinitions = await getProductMetafieldDefinitions();
+  
+  // Create a reverse mapping from definition IDs to our attribute keys
+  const definitionIdToAttribute = {};
+  for (const [attrName, definitionId] of Object.entries(metafieldDefinitions)) {
+    definitionIdToAttribute[definitionId] = attrName;
+  }
+  
+  // Extract from title for basic matching
+  const title = collection.title.toLowerCase();
+  
+  // Extract from rules (more reliable)
+  if (collection.rules && Array.isArray(collection.rules)) {
+    for (const rule of collection.rules) {
+      if (rule.column === 'type') {
+        attributes.product_type = rule.condition;
+      } else if (rule.column === 'vendor') {
+        attributes.vendor = rule.condition;
+      } else if (rule.column === 'product_metafield_definition' && rule.condition_object_id) {
+        // Extract the numeric ID from the GraphQL ID if needed
+        const definitionId = rule.condition_object_id.includes('/') 
+          ? rule.condition_object_id.split('/').pop() 
+          : rule.condition_object_id;
+        
+        // Look up which attribute this definition ID corresponds to
+        const attributeKey = definitionIdToAttribute[definitionId];
+        if (attributeKey) {
+          attributes[attributeKey] = rule.condition;
+        }
+      }
+    }
+  }
+  
+  // If rules didn't yield results, try to extract from title
+  if (!attributes.product_type) {
+    // Use heuristics to extract product type from title
+    const knownTypes = ['boom lifts', 'scissor lifts', 'telehandler', 'trailer', 'telehandler attachment'];
+    for (const type of knownTypes) {
+      if (title.includes(type)) {
+        attributes.product_type = type;
+        break;
+      }
+    }
+  }
+
+  if(!attributes.vendor) {
+    const knownVendors = ['genie', 'jlg', 'skyjack', 'haulage', 'niftylift', 'xtreme'];
+    for (const vendor of knownVendors) {
+      if (title.includes(vendor)) {
+        attributes.vendor = vendor;
+        break;
+      }
+    }
+  }
+  
+  return attributes;
+}
+
 module.exports = {
   processProduct,
   processAllExistingProducts,
@@ -500,5 +711,6 @@ module.exports = {
   doesSimilarCollectionExist,
   extractProductAttributes,
   getProductMetafieldDefinitions,
-  cleanupDuplicateCollections
+  cleanupDuplicateCollections,
+  getRelatedCollections
 };
