@@ -1,7 +1,6 @@
 require('dotenv').config();
 const axios = require('axios');
-const shopifyApi = require('./shopify-api');
-const collectionGenerator = require('./collection-generator');
+const collectionGenerator = require('../collection-generator');
 
 /**
  * Generate a test product with the provided attributes
