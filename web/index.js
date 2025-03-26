@@ -40,10 +40,16 @@ app.post("/webhooks/products/create", async (req, res) => {
       .update(body, "utf8")
       .digest("base64");
 
-    // Compare our hash to Shopify's hash
-    if (hash !== hmac) {
-      // No match! This request didn't originate from Shopify
-      console.log("Danger! Not from Shopify!");
+    // Use timing-safe comparison
+    try {
+      const hmacValid = crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(hmac));
+      if (!hmacValid) {
+        console.log("Danger! Not from Shopify!");
+        return res.sendStatus(403);
+      }
+    } catch (e) {
+      // This catches errors like when the strings are of different lengths
+      console.log("HMAC validation error:", e);
       return res.sendStatus(403);
     }
 
@@ -53,10 +59,12 @@ app.post("/webhooks/products/create", async (req, res) => {
       `Received webhook for new product: ${product.id} - ${product.title}`
     );
 
-    // Process the new product
-    await collectionGenerator.processProduct(product.id);
-
     res.status(200).send("OK");
+
+    // Process the new product
+    collectionGenerator.processProduct(product.id).catch(error => {
+      console.error(`Error processing product: ${product.id}`, error);
+    });
   } catch (error) {
     console.error("Error processing webhook:", error);
     res.status(500).send("Error processing webhook");
@@ -119,6 +127,18 @@ app.get("/delete-duplicate-collections", async (req, res) => {
     res.status(200).send("Duplicate collections deleted successfully");
   } catch (error) {
     console.error("Error deleting duplicate collections:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Route to fetch related collections for a given collection
+app.get("/related-collections/:collectionHandle", async (req, res) => {
+  try {
+    const { collectionHandle } = req.params;
+    const relatedCollections = await collectionGenerator.getRelatedCollections(collectionHandle);
+    res.status(200).json(relatedCollections);
+  } catch (error) {
+    console.error("Error fetching related collections:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
