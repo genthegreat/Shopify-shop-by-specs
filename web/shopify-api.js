@@ -29,6 +29,7 @@ async function createSmartCollection(collectionDetails) {
       {
         smart_collection: {
           title: collectionDetails.title,
+          handle: collectionDetails.handle,
           rules: collectionDetails.rules,
           disjunctive: false, // Products must match all rules
           published: true,
@@ -343,14 +344,52 @@ async function deleteSmartCollection(collectionId) {
       `${shopifyApiUrl}/smart_collections/${collectionId}.json`,
       { headers: shopifyHeaders }
     );
-    
-    return response.data;
+    return true;
   } catch (error) {
     console.error(
-      `Error deleting smart collection ${collectionId}:`,
+      `Error deleting collection ${collectionId}:`,
       error.response?.data || error.message
     );
-    throw error;
+    return false;
+  }
+}
+
+/**
+ * Get a collection by its handle
+ * @param {String} handle - Collection handle
+ * @returns {Object} Collection object or null if not found
+ */
+async function getCollectionByHandle(handle) {
+  try {
+    // Try to find the collection in smart collections first
+    const smartResponse = await axios.get(
+      `${shopifyApiUrl}/smart_collections.json?handle=${handle}`,
+      { headers: shopifyHeaders }
+    );
+    
+    if (smartResponse.data.smart_collections && smartResponse.data.smart_collections.length > 0) {
+      return smartResponse.data.smart_collections[0];
+    }
+    
+    // If not found in smart collections, try custom collections
+    const customResponse = await axios.get(
+      `${shopifyApiUrl}/custom_collections.json?handle=${handle}`,
+      { headers: shopifyHeaders }
+    );
+    
+    if (customResponse.data.custom_collections && customResponse.data.custom_collections.length > 0) {
+      return customResponse.data.custom_collections[0];
+    }
+    
+    // Collection not found
+    console.log(`Collection with handle ${handle} not found`);
+    return null;
+  } catch (error) {
+    console.error(
+      `Error fetching collection by handle ${handle}:`,
+      error.response?.data || error.message
+    );
+    return null;
   }
 }
 
@@ -363,4 +402,5 @@ module.exports = {
   runGraphQLQuery,
   getProductsGraphQL,
   deleteSmartCollection,
+  getCollectionByHandle
 };
