@@ -1,6 +1,6 @@
 require("dotenv").config();
-const shopifyApi = require("./shopify-api");
-const collectionGenerator = require("./collection-generator");
+const shopifyApi = require("../shopify-api");
+const collectionGenerator = require("../collection-generator");
 
 async function testGraphQLProduct() {
   try {
