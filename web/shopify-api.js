@@ -121,8 +121,6 @@ async function getExistingSmartCollections() {
  */
 async function runGraphQLQuery(query, variables = {}) {
   try {
-    console.log("Running GraphQL query...");
-
     const response = await axios.post(
       `${shopifyApiUrl}/graphql.json`,
       {
@@ -136,7 +134,7 @@ async function runGraphQLQuery(query, variables = {}) {
         },
       }
     );
-
+    
     if (response.data.errors) {
       console.error("GraphQL errors:", response.data.errors);
       // Don't return null here - return the data even if there are errors
@@ -145,7 +143,6 @@ async function runGraphQLQuery(query, variables = {}) {
 
     if (!response.data.data) {
       console.error("No data returned from GraphQL query");
-      console.log("Full response:", JSON.stringify(response.data, null, 2));
       return null;
     }
 
@@ -385,10 +382,7 @@ async function getCollectionByHandle(handle) {
     console.log(`Collection with handle ${handle} not found`);
     return null;
   } catch (error) {
-    console.error(
-      `Error fetching collection by handle ${handle}:`,
-      error.response?.data || error.message
-    );
+    console.error(`Error fetching collection by handle ${handle}:`, error.response?.data || error.message);
     return null;
   }
 }

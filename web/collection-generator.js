@@ -348,6 +348,8 @@ async function processAllExistingProducts() {
  * @returns {Object} Map of our internal attribute names to definition IDs
  */
 async function getProductMetafieldDefinitions() {
+  console.log(`Getting metafield definitions`);
+  
   const query = `
   {
     metafieldDefinitions(
@@ -377,7 +379,7 @@ async function getProductMetafieldDefinitions() {
       !result.metafieldDefinitions ||
       !result.metafieldDefinitions.edges
     ) {
-      console.error("Failed to fetch metafield definitions");
+      console.error(`Failed to fetch metafield definitions - invalid response structure`);
       return {};
     }
 
@@ -386,6 +388,7 @@ async function getProductMetafieldDefinitions() {
 
     result.metafieldDefinitions.edges.forEach((edge) => {
       const { key, id } = edge.node;
+      
       // Extract numeric ID from GraphQL ID (format: gid://shopify/MetafieldDefinition/ID)
       const numericId = id.split("/").pop();
 
@@ -404,7 +407,7 @@ async function getProductMetafieldDefinitions() {
 
     return definitionsMap;
   } catch (error) {
-    console.error("Error fetching metafield definitions:", error);
+    console.error(`Error fetching metafield definitions:`, error);
     return {};
   }
 }
@@ -520,17 +523,25 @@ async function cleanupDuplicateCollections() {
  */
 async function getRelatedCollections(collectionHandle) {
   try {
+    console.log(`Getting related collections for: ${collectionHandle}`);
+    
     // Step 1: Get the current collection details
     const collection = await shopifyApi.getCollectionByHandle(collectionHandle);
+    
     if (!collection) {
+      console.error(`Collection not found with handle: ${collectionHandle}`);
       throw new Error(`Collection not found with handle: ${collectionHandle}`);
     }
 
+    // Fetch metafield definitions once - OPTIMIZATION
+    const metafieldDefinitions = await getProductMetafieldDefinitions();
+
     // Step 2: Parse the collection attributes from title and rules
-    const collectionAttributes = await parseCollectionAttributes(collection);
+    const collectionAttributes = await parseCollectionAttributes(collection, metafieldDefinitions);
     
     // Step 3: Get all collections
     const allCollections = await shopifyApi.getExistingSmartCollections();
+    console.log(`Processing ${allCollections.length} collections`);
     
     // Step 4: Organize related collections by category
     const related = {
@@ -555,11 +566,21 @@ async function getRelatedCollections(collectionHandle) {
     }
 
     // Get collections by category
+    let processedCount = 0;
+    
     for (const otherCollection of allCollections) {
-      const otherAttributes = parseCollectionAttributes(otherCollection);
+      processedCount++;
+      if (processedCount % 100 === 0) {
+        console.log(`Processed ${processedCount}/${allCollections.length} collections`);
+      }
+      
+      // Pass metafield definitions to avoid refetching
+      const otherAttributes = await parseCollectionAttributes(otherCollection, metafieldDefinitions);
       
       // Skip the current collection
-      if (otherCollection.handle === collectionHandle) continue;
+      if (otherCollection.handle === collectionHandle) {
+        continue;
+      }
       
       // Category tab: collections that share the product type but have different attributes
       if (otherAttributes.product_type === productType) {
@@ -623,9 +644,10 @@ async function getRelatedCollections(collectionHandle) {
       { title: "Haulage Parts", handle: "haulage-parts" }
     ];
     
+    console.log(`Completed finding related collections for: ${collectionHandle}`);
     return related;
   } catch (error) {
-    console.error(`Error getting related collections for ${collectionHandle}:`, error);
+    console.error(`Error in getRelatedCollections for ${collectionHandle}:`, error);
     throw error;
   }
 }
@@ -633,9 +655,10 @@ async function getRelatedCollections(collectionHandle) {
 /**
  * Parse collection attributes from collection object
  * @param {Object} collection - Shopify collection object
+ * @param {Object} [providedMetafieldDefinitions] - Optional metafield definitions to use instead of fetching
  * @returns {Object} Parsed attributes
  */
-async function parseCollectionAttributes(collection) {
+async function parseCollectionAttributes(collection, providedMetafieldDefinitions = null) {
   const attributes = {
     product_type: '',
     vendor: '',
@@ -644,17 +667,19 @@ async function parseCollectionAttributes(collection) {
     fuel_type: ''
   };
   
-  // Get metafield definitions mapping
-  const metafieldDefinitions = await getProductMetafieldDefinitions();
+  // Get metafield definitions mapping - use provided definitions or fetch them
+  let metafieldDefinitions;
+  if (providedMetafieldDefinitions) {
+    metafieldDefinitions = providedMetafieldDefinitions;
+  } else {
+    metafieldDefinitions = await getProductMetafieldDefinitions();
+  }
   
   // Create a reverse mapping from definition IDs to our attribute keys
   const definitionIdToAttribute = {};
   for (const [attrName, definitionId] of Object.entries(metafieldDefinitions)) {
     definitionIdToAttribute[definitionId] = attrName;
   }
-  
-  // Extract from title for basic matching
-  const title = collection.title.toLowerCase();
   
   // Extract from rules (more reliable)
   if (collection.rules && Array.isArray(collection.rules)) {
@@ -677,6 +702,9 @@ async function parseCollectionAttributes(collection) {
       }
     }
   }
+
+  // Extract from title for basic matching
+  const title = collection.title.toLowerCase();
   
   // If rules didn't yield results, try to extract from title
   if (!attributes.product_type) {

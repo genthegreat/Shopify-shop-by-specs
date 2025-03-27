@@ -135,10 +135,12 @@ app.get("/delete-duplicate-collections", async (req, res) => {
 app.get("/related-collections/:collectionHandle", async (req, res) => {
   try {
     const { collectionHandle } = req.params;
+    console.log(`Processing related collections request for: ${collectionHandle}`);
+    
     const relatedCollections = await collectionGenerator.getRelatedCollections(collectionHandle);
     res.status(200).json(relatedCollections);
   } catch (error) {
-    console.error("Error fetching related collections:", error);
+    console.error(`Error fetching related collections:`, error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
