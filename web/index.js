@@ -13,7 +13,36 @@ const SECRET_KEY = process.env.SHOPIFY_WEBHOOK_SECRET;
 const SITE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    /\.myshopify\.com$/,  // Allow all Shopify store domains
+    'https://prince-kwesi-dev.myshopify.com',  // Your specific store
+    'https://cdn.shopify.com',
+    /localhost:\d+$/  // Local development
+  ],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// CORS middleware for all routes as a backup
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'https://prince-kwesi-dev.myshopify.com',
+    'https://cdn.shopify.com'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin) || /\.myshopify\.com$/.test(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  next();
+});
 
 // Use body-parser for regular routes
 app.use((req, res, next) => {
@@ -137,6 +166,14 @@ app.get("/related-collections/:collectionHandle", async (req, res) => {
     const { collectionHandle } = req.params;
     console.log(`Processing related collections request for: ${collectionHandle}`);
     
+    // Set CORS headers specifically for this endpoint
+    const origin = req.headers.origin;
+    if (origin) {
+      res.header('Access-Control-Allow-Origin', origin);
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+    
     const relatedCollections = await collectionGenerator.getRelatedCollections(collectionHandle);
     res.status(200).json(relatedCollections);
   } catch (error) {
@@ -148,6 +185,16 @@ app.get("/related-collections/:collectionHandle", async (req, res) => {
 // Health check route
 app.get("/", (req, res) => {
   res.status(200).send("Shop by Specs app is running!");
+});
+
+// Add OPTIONS route handler for CORS preflight requests
+app.options('*', (req, res) => {
+  // Set CORS headers manually for preflight requests
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.status(204).end();
 });
 
 // Start the server
