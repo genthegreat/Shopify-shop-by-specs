@@ -289,8 +289,6 @@ async function getProductByIdGraphQL(productId) {
     formattedId = `gid://shopify/Product/${formattedId}`;
   }
 
-  console.log(`Formatted ID: ${formattedId}`);
-
   const query = `
     {
       product(id: "${formattedId}") {
@@ -319,8 +317,6 @@ async function getProductByIdGraphQL(productId) {
   `;
 
   const result = await runGraphQLQuery(query);
-
-  console.log(`Result: ${JSON.stringify(result, null, 2)}`);
 
   if (result && result.product) {
     // Transform the variants structure to match REST API format
@@ -364,7 +360,6 @@ async function getProducts(limit = 250, after = null) {
   `;
 
     const result = await runGraphQLQuery(query);
-    console.log(JSON.stringify(result, null, 2));
 
     return result.data.products || [];
   } catch (error) {
