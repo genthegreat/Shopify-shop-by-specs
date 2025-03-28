@@ -182,6 +182,16 @@ app.get("/related-collections/:collectionHandle", async (req, res) => {
   }
 });
 
+app.get("/all-collections", async (req, res) => {
+  try {
+    const collections = await shopifyApi.getExistingSmartCollectionsGraphQL();
+    res.status(200).json(collections);
+  } catch (error) {
+    console.error(`Error fetching all collections:`, error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check route
 app.get("/", (req, res) => {
   res.status(200).send("Shop by Specs app is running!");
