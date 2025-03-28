@@ -98,12 +98,33 @@ async function createSmartCollection(collectionDetails) {
  */
 async function getExistingSmartCollections() {
   try {
-    const response = await axios.get(
-      `${shopifyApiUrl}/smart_collections.json?limit=250`,
-      { headers: shopifyHeaders }
-    );
+    let collections = [];
+    let nextPageUrl = `${shopifyApiUrl}/smart_collections.json?limit=250`;
+    
+    while (nextPageUrl) {
+      const response = await axios.get(nextPageUrl, { headers: shopifyHeaders });
+      
+      // Add the collections from this page to our array
+      if (response.data.smart_collections && response.data.smart_collections.length > 0) {
+        collections = collections.concat(response.data.smart_collections);
+      }
+      
+      // Check if there's a next page in the Link header
+      const linkHeader = response.headers.link || response.headers.Link;
+      nextPageUrl = null;
+      
+      if (linkHeader) {
+        // Use regex to extract the next page URL from the Link header
+        const nextLinkMatch = linkHeader.match(/<([^>]+)>\s*;\s*rel=(?:"|')?next(?:"|')?/i);
+        
+        if (nextLinkMatch && nextLinkMatch[1]) {
+          nextPageUrl = nextLinkMatch[1];
+          console.log(`Pagination: Found next page URL`);
+        }
+      }
+    }
 
-    return response.data.smart_collections || [];
+    return collections;
   } catch (error) {
     console.error(
       "Error fetching smart collections:",
