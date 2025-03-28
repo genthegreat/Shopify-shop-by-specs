@@ -100,28 +100,120 @@ async function getExistingSmartCollections() {
   try {
     let collections = [];
     let nextPageUrl = `${shopifyApiUrl}/smart_collections.json?limit=250`;
-    
+
     while (nextPageUrl) {
-      const response = await axios.get(nextPageUrl, { headers: shopifyHeaders });
-      
+      const response = await axios.get(nextPageUrl, {
+        headers: shopifyHeaders,
+      });
+
       // Add the collections from this page to our array
-      if (response.data.smart_collections && response.data.smart_collections.length > 0) {
+      if (
+        response.data.smart_collections &&
+        response.data.smart_collections.length > 0
+      ) {
         collections = collections.concat(response.data.smart_collections);
       }
-      
+
       // Check if there's a next page in the Link header
       const linkHeader = response.headers.link || response.headers.Link;
       nextPageUrl = null;
-      
+
       if (linkHeader) {
         // Use regex to extract the next page URL from the Link header
-        const nextLinkMatch = linkHeader.match(/<([^>]+)>\s*;\s*rel=(?:"|')?next(?:"|')?/i);
-        
+        const nextLinkMatch = linkHeader.match(
+          /<([^>]+)>\s*;\s*rel=(?:"|')?next(?:"|')?/i
+        );
+
         if (nextLinkMatch && nextLinkMatch[1]) {
           nextPageUrl = nextLinkMatch[1];
           console.log(`Pagination: Found next page URL`);
         }
       }
+    }
+
+    return collections;
+  } catch (error) {
+    console.error(
+      "Error fetching smart collections:",
+      error.response?.data || error.message
+    );
+    return [];
+  }
+}
+
+/**
+ * Get all existing smart collections using GraphQL
+ * @returns {Array} List of smart collections
+ */
+async function getExistingSmartCollectionsGraphQL() {
+  try {
+    let hasNextPage = true;
+    let cursor = null;
+    let collections = [];
+
+    while (hasNextPage) {
+      const query = `
+        {
+          collections(query: "collection_type:smart", first: 50 ${
+            cursor ? `, after: "${cursor}"` : ""
+          }) {
+            pageInfo {
+                hasNextPage
+                endCursor
+              }
+            edges {
+              node {
+                id
+                title
+                handle
+                products(first: 1){
+                    edges{
+                        node{
+                            featuredMedia{
+                                preview{
+                                    image{
+                                        url
+                                        altText
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                ruleSet{
+                    appliedDisjunctively
+                    rules{
+                        column
+                        condition
+                        relation
+                        conditionObject{
+                            ...on CollectionRuleMetafieldCondition{
+                                metafieldDefinition{
+                                    id
+                                    key
+                                }
+                            }
+                        }
+                    }
+                }
+              }
+            }
+          }
+        }
+      `;
+      const result = await runGraphQLQuery(query);
+
+      if (!result || !result.collections || !result.collections.edges) {
+        console.error("Error fetching collections: Invalid response structure");
+        break;
+      }
+
+      // Push the collections from this page to our array
+      collections.push(...result.collections.edges.map((edge) => edge.node));
+
+      // Update pagination info for next iteration
+      hasNextPage = result.collections.pageInfo.hasNextPage;
+      cursor = result.collections.pageInfo.endCursor;
     }
 
     return collections;
@@ -155,7 +247,7 @@ async function runGraphQLQuery(query, variables = {}) {
         },
       }
     );
-    
+
     if (response.data.errors) {
       console.error("GraphQL errors:", response.data.errors);
       // Don't return null here - return the data even if there are errors
@@ -379,31 +471,91 @@ async function deleteSmartCollection(collectionId) {
  */
 async function getCollectionByHandle(handle) {
   try {
+    // Try by GraphQL first
+    const graphqlResponse = await runGraphQLQuery(
+      `
+      {
+        collectionByHandle(handle: "${handle}") {
+          id
+          title
+          handle
+          image{
+            url
+            altText
+          }
+          products(first: 1){
+            edges{
+              node{
+                featuredMedia{
+                  preview{
+                    image{
+                      url
+                      altText
+                    }
+                  }
+                }
+              }
+            }
+          }
+          ruleSet{
+            appliedDisjunctively
+            rules{
+                column
+                condition
+                relation
+                conditionObject{
+                  ...on CollectionRuleMetafieldCondition{
+                      metafieldDefinition{
+                          id
+                          key
+                      }
+                  }
+              }
+            }
+          }
+        }
+      }
+    `
+    );
+
+    if (graphqlResponse && graphqlResponse.collectionByHandle) {
+      return graphqlResponse.collectionByHandle;
+    }
+
     // Try to find the collection in smart collections first
     const smartResponse = await axios.get(
       `${shopifyApiUrl}/smart_collections.json?handle=${handle}`,
       { headers: shopifyHeaders }
     );
-    
-    if (smartResponse.data.smart_collections && smartResponse.data.smart_collections.length > 0) {
+
+    if (
+      smartResponse.data.smart_collections &&
+      smartResponse.data.smart_collections.length > 0
+    ) {
       return smartResponse.data.smart_collections[0];
     }
-    
+
     // If not found in smart collections, try custom collections
     const customResponse = await axios.get(
       `${shopifyApiUrl}/custom_collections.json?handle=${handle}`,
       { headers: shopifyHeaders }
     );
-    
-    if (customResponse.data.custom_collections && customResponse.data.custom_collections.length > 0) {
+
+    if (
+      customResponse.data.custom_collections &&
+      customResponse.data.custom_collections.length > 0
+    ) {
       return customResponse.data.custom_collections[0];
     }
-    
+
     // Collection not found
     console.log(`Collection with handle ${handle} not found`);
     return null;
   } catch (error) {
-    console.error(`Error fetching collection by handle ${handle}:`, error.response?.data || error.message);
+    console.error(
+      `Error fetching collection by handle ${handle}:`,
+      error.response?.data || error.message
+    );
     return null;
   }
 }
@@ -411,11 +563,12 @@ async function getCollectionByHandle(handle) {
 module.exports = {
   createSmartCollection,
   getExistingSmartCollections,
+  getExistingSmartCollectionsGraphQL,
   getProductByIdGraphQL,
   getProducts,
   registerProductCreationWebhook,
   runGraphQLQuery,
   getProductsGraphQL,
   deleteSmartCollection,
-  getCollectionByHandle
+  getCollectionByHandle,
 };

@@ -516,6 +516,34 @@ async function cleanupDuplicateCollections() {
   }
 }
 
+// Helper function to safely extract image URL from collection
+function getCollectionImageUrl(collection) {
+  try {
+    // First try direct image URL if available
+    if (collection.image && collection.image.url) {
+      return collection.image.url;
+    }
+    
+    // Then try to get from products if available
+    if (collection.products && 
+        collection.products.edges && 
+        collection.products.edges.length > 0 &&
+        collection.products.edges[0].node &&
+        collection.products.edges[0].node.featuredMedia &&
+        collection.products.edges[0].node.featuredMedia.preview &&
+        collection.products.edges[0].node.featuredMedia.preview.image &&
+        collection.products.edges[0].node.featuredMedia.preview.image.url) {
+      return collection.products.edges[0].node.featuredMedia.preview.image.url;
+    }
+    
+    // Return null if no image found
+    return null;
+  } catch (error) {
+    console.log(`Error extracting image for collection ${collection.title}:`, error);
+    return null;
+  }
+}
+
 /**
  * Get related collections for a given collection handle
  * @param {String} collectionHandle - The handle of the current collection
@@ -540,7 +568,7 @@ async function getRelatedCollections(collectionHandle) {
     const collectionAttributes = await parseCollectionAttributes(collection, metafieldDefinitions);
     
     // Step 3: Get all collections
-    const allCollections = await shopifyApi.getExistingSmartCollections();
+    const allCollections = await shopifyApi.getExistingSmartCollectionsGraphQL();
     console.log(`Processing ${allCollections.length} collections`);
     
     // Step 4: Organize related collections by category
@@ -582,12 +610,15 @@ async function getRelatedCollections(collectionHandle) {
         continue;
       }
       
+      // Get image URL safely
+      const imageUrl = getCollectionImageUrl(otherCollection);
+      
       // Category tab: collections that share the product type but have different attributes
       if (otherAttributes.product_type === productType) {
         related.byCategory.push({
           title: otherCollection.title,
           handle: otherCollection.handle,
-          image: otherCollection.image ? otherCollection.image.src : null
+          image: imageUrl
         });
       }
       
@@ -598,7 +629,7 @@ async function getRelatedCollections(collectionHandle) {
         related.byManufacturer.push({
           title: otherAttributes.vendor,
           handle: otherCollection.handle,
-          image: otherCollection.image ? otherCollection.image.src : null
+          image: imageUrl
         });
       }
       
@@ -609,7 +640,7 @@ async function getRelatedCollections(collectionHandle) {
         related.bySizeItem.push({
           title: otherAttributes.size_item,
           handle: otherCollection.handle,
-          image: otherCollection.image ? otherCollection.image.src : null
+          image: imageUrl
         });
       }
       
@@ -620,7 +651,7 @@ async function getRelatedCollections(collectionHandle) {
         related.bySpecs.condition.push({
           title: otherAttributes.condition,
           handle: otherCollection.handle,
-          image: otherCollection.image ? otherCollection.image.src : null
+          image: imageUrl
         });
       }
       
@@ -631,7 +662,7 @@ async function getRelatedCollections(collectionHandle) {
         related.bySpecs.fuelType.push({
           title: otherAttributes.fuel_type,
           handle: otherCollection.handle,
-          image: otherCollection.image ? otherCollection.image.src : null
+          image: imageUrl
         });
       }
     }
@@ -681,8 +712,9 @@ async function parseCollectionAttributes(collection, providedMetafieldDefinition
     definitionIdToAttribute[definitionId] = attrName;
   }
   
-  // Extract from rules (more reliable)
+  // Handle both REST API format (rules array) and GraphQL format (ruleSet)
   if (collection.rules && Array.isArray(collection.rules)) {
+    // REST API format
     for (const rule of collection.rules) {
       if (rule.column === 'type') {
         attributes.product_type = rule.condition;
@@ -701,10 +733,62 @@ async function parseCollectionAttributes(collection, providedMetafieldDefinition
         }
       }
     }
+  } else if (collection.ruleSet && collection.ruleSet.rules) {
+    // GraphQL format
+    for (const rule of collection.ruleSet.rules) {
+      const column = rule.column.toLowerCase(); // GraphQL returns uppercase
+      
+      if (column === 'type') {
+        attributes.product_type = rule.condition;
+      } else if (column === 'vendor') {
+        attributes.vendor = rule.condition;
+      } else if (column === 'product_metafield_definition') {
+        // Here we can now use the conditionObject that contains metafieldDefinition
+        if (rule.conditionObject && rule.conditionObject.metafieldDefinition) {
+          const metafieldDef = rule.conditionObject.metafieldDefinition;
+          
+          // Extract the ID from the GraphQL ID
+          const definitionId = metafieldDef.id.split('/').pop();
+          
+          // First try to map using the definition ID
+          let attributeKey = definitionIdToAttribute[definitionId];
+          
+          // If no mapping found by ID, try to map using the key name
+          if (!attributeKey) {
+            const key = metafieldDef.key.toLowerCase();
+            
+            if (key === 'condition' || key === 'Condition') {
+              attributeKey = 'condition';
+            } else if (key === 'size_item' || key === 'size') {
+              attributeKey = 'size_item';
+            } else if (key === 'fuel_type') {
+              attributeKey = 'fuel_type';
+            }
+          }
+          
+          // If we found an attribute key, set the value
+          if (attributeKey) {
+            attributes[attributeKey] = rule.condition;
+            continue;
+          }
+        }
+        
+        // Fallback to pattern matching if we couldn't determine the attribute from metadata
+        const condition = rule.condition.toLowerCase();
+        
+        if (/\b(used|new|refurbished)\b/.test(condition)) {
+          attributes.condition = rule.condition;
+        } else if (/(\d+['"]|\d+ft|\d+-\d+|feet|\d+')/.test(condition)) {
+          attributes.size_item = rule.condition;
+        } else if (/\b(electric|diesel|gas|hybrid|propane)\b/.test(condition)) {
+          attributes.fuel_type = rule.condition;
+        }
+      }
+    }
   }
 
-  // Extract from title for basic matching
-  const title = collection.title.toLowerCase();
+  // Extract from title for basic matching if rules didn't yield all attributes
+  const title = collection.title ? collection.title.toLowerCase() : '';
   
   // If rules didn't yield results, try to extract from title
   if (!attributes.product_type) {
