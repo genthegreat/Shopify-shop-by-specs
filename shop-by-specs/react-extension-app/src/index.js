@@ -56,14 +56,6 @@ const LoadingIndicator = () => (
   </div>
 );
 
-// Error message component
-const ErrorMessage = ({ message }) => (
-  <div className="error-message">
-    <p>Error: {message}</p>
-    <button onClick={() => window.location.reload()}>Try Again</button>
-  </div>
-);
-
 // Main App component
 const App = () => {
   // Get current collection handle from URL
@@ -86,6 +78,12 @@ const App = () => {
     const fetchRelatedCollections = async () => {
       if (!collectionHandle) {
         setError('No collection handle found in URL');
+        setLoading(false);
+        return;
+      }
+
+      if (collectionHandle === 'all') {
+        setError('All collections page is not supported');
         setLoading(false);
         return;
       }
@@ -140,7 +138,7 @@ const App = () => {
 
   // If there's an error, show error message
   if (error) {
-    return <ErrorMessage message={error} />;
+    console.error('Error:', error);
   }
   
   // If still loading, show loading spinner
@@ -151,9 +149,7 @@ const App = () => {
   // If no collection handle or no data, show message
   if (!collectionHandle || !relatedCollections) {
     return (
-      <div className="container">
-        <p>No related collections found or invalid collection page.</p>
-      </div>
+      <div className="container"></div>
     );
   }
   
@@ -273,7 +269,6 @@ const App = () => {
           border: 1px #294378 solid;
           border-radius: 20px;
           cursor: pointer;
-          padding: 10px 15px;
           margin: 5px;
         }
         
@@ -357,7 +352,7 @@ const App = () => {
         .error-message button {
           background-color: #294378;
           color: white;
-          padding: 10px 15px;
+          padding: 5px 10px;
           border: none;
           border-radius: 20px;
           margin-top: 15px;
