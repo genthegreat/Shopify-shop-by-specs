@@ -627,7 +627,7 @@ async function getRelatedCollections(collectionHandle) {
           otherAttributes.product_type === productType &&
           otherAttributes.vendor) {
         related.byManufacturer.push({
-          title: otherAttributes.vendor,
+          title: otherCollection.title,
           handle: otherCollection.handle,
           image: imageUrl
         });
@@ -638,7 +638,7 @@ async function getRelatedCollections(collectionHandle) {
           otherAttributes.product_type === productType &&
           otherAttributes.size_item) {
         related.bySizeItem.push({
-          title: otherAttributes.size_item,
+          title: otherCollection.title,
           handle: otherCollection.handle,
           image: imageUrl
         });
@@ -649,7 +649,7 @@ async function getRelatedCollections(collectionHandle) {
           otherAttributes.product_type === productType &&
           otherAttributes.condition) {
         related.bySpecs.condition.push({
-          title: otherAttributes.condition,
+          title: otherCollection.title,
           handle: otherCollection.handle,
           image: imageUrl
         });
@@ -660,7 +660,7 @@ async function getRelatedCollections(collectionHandle) {
           otherAttributes.product_type === productType &&
           otherAttributes.fuel_type) {
         related.bySpecs.fuelType.push({
-          title: otherAttributes.fuel_type,
+          title: otherCollection.title,
           handle: otherCollection.handle,
           image: imageUrl
         });
@@ -783,31 +783,6 @@ async function parseCollectionAttributes(collection, providedMetafieldDefinition
         } else if (/\b(electric|diesel|gas|hybrid|propane)\b/.test(condition)) {
           attributes.fuel_type = rule.condition;
         }
-      }
-    }
-  }
-
-  // Extract from title for basic matching if rules didn't yield all attributes
-  const title = collection.title ? collection.title.toLowerCase() : '';
-  
-  // If rules didn't yield results, try to extract from title
-  if (!attributes.product_type) {
-    // Use heuristics to extract product type from title
-    const knownTypes = ['boom lifts', 'scissor lifts', 'telehandler', 'trailer', 'telehandler attachment'];
-    for (const type of knownTypes) {
-      if (title.includes(type)) {
-        attributes.product_type = type;
-        break;
-      }
-    }
-  }
-
-  if(!attributes.vendor) {
-    const knownVendors = ['genie', 'jlg', 'skyjack', 'haulage', 'niftylift', 'xtreme'];
-    for (const vendor of knownVendors) {
-      if (title.includes(vendor)) {
-        attributes.vendor = vendor;
-        break;
       }
     }
   }
