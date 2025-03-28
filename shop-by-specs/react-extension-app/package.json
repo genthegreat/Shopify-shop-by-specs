@@ -20,7 +20,6 @@
     "react-dom": "^19.0.0",
     "react-scripts": "5.0.1",
     "style-loader": "^4.0.0",
-    "tailwindcss": "^4.0.17",
     "terser-webpack-plugin": "^5.3.14",
     "web-vitals": "^2.1.4",
     "webpack": "^5.98.0",
