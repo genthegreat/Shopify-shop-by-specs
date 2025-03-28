@@ -245,7 +245,6 @@ async function processProduct(productIdOrObj) {
     let product;
 
     product = await shopifyApi.getProductByIdGraphQL(productIdOrObj);
-    console.log(`Product: ${JSON.stringify(product, null, 2)}`);
 
     if (!product) {
       console.error("Product not found");
@@ -317,8 +316,6 @@ async function processAllExistingProducts() {
           productTitle: product.title,
         };
       });
-
-      console.log(`Retrieved products ${JSON.stringify(products, null, 2)}`);
 
       console.log(
         `Processing ${products.length} products (total processed: ${productsProcessed})`
