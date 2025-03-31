@@ -281,7 +281,7 @@ async function processProduct(productIdOrObj) {
       }
 
       // Create new collection
-      await shopifyApi.createSmartCollection(collectionDetails);
+      await shopifyApi.createSmartCollectionGraphQL(collectionDetails);
     }
 
     console.log(`Finished processing product ${product.id}`);
