@@ -20,6 +20,7 @@
   "dependencies": {
     "@shopify/graphql-client": "^1.3.1",
     "axios": "^1.8.4",
+    "better-queue": "^3.8.12",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
