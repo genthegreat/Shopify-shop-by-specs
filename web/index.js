@@ -6,6 +6,8 @@ const collectionGenerator = require("./collection-generator");
 const shopifyApi = require("./shopify-api");
 const crypto = require("crypto");
 const getRawBody = require("raw-body");
+const Queue = require('better-queue');
+const { setTimeout } = require('timers/promises');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,6 +56,33 @@ app.use((req, res, next) => {
   bodyParser.json()(req, res, next);
 });
 
+// Create a rate-limited queue for processing products
+const productQueue = new Queue(async (productId, cb) => {
+  try {
+    console.log(`Processing product ${productId} from queue...`);
+    await collectionGenerator.processProduct(productId);
+    console.log(`Finished processing product ${productId}`);
+    cb(null, { success: true, productId });
+  } catch (error) {
+    console.error(`Error processing product: ${productId}`, error);
+    cb(error);
+  }
+}, {
+  concurrent: 1, // Process one product at a time
+  afterProcessDelay: 550, // Ensure 550ms between API calls (2 per second max)
+  maxRetries: 3, // Retry failed tasks
+  retryDelay: 2000, // Wait 2 seconds between retries
+});
+
+// Optional: Track queue statistics
+productQueue.on('task_finish', (taskId, result, stats) => {
+  console.log(`Task ${taskId} finished in ${stats.elapsed}ms. With result: ${result}. Queue size: ${productQueue.length}`);
+});
+
+productQueue.on('task_failed', (taskId, err, stats) => {
+  console.error(`Task ${taskId} failed after ${stats.elapsed}ms, attempt ${stats.attempts}`, err);
+});
+
 // Webhook endpoint for product creation
 app.post("/webhooks/products/create", async (req, res) => {
   try {
@@ -88,12 +117,12 @@ app.post("/webhooks/products/create", async (req, res) => {
       `Received webhook for new product: ${product.id} - ${product.title}`
     );
 
+    // Respond to the webhook immediately to prevent timeouts
     res.status(200).send("OK");
 
-    // Process the new product
-    collectionGenerator.processProduct(product.id).catch(error => {
-      console.error(`Error processing product: ${product.id}`, error);
-    });
+    // Queue the product for processing
+    productQueue.push(product.id);
+    
   } catch (error) {
     console.error("Error processing webhook:", error);
     res.status(500).send("Error processing webhook");
@@ -103,12 +132,61 @@ app.post("/webhooks/products/create", async (req, res) => {
 // Route to manually trigger processing all existing products
 app.get("/process-existing-products", async (req, res) => {
   try {
-    // Run in background
-    collectionGenerator.processAllExistingProducts().catch(console.error);
+    // Respond immediately
     res.status(200).send("Processing started in background");
+    
+    // Function to fetch and queue products in batches
+    const fetchAndQueueProducts = async () => {
+      let hasNextPage = true;
+      let cursor = null;
+      let totalQueued = 0;
+      
+      while (hasNextPage) {
+        try {
+          console.log(`Fetching batch of products${cursor ? " after " + cursor : ""}...`);
+          
+          const result = await shopifyApi.getProductsGraphQL(cursor);
+          
+          if (!result || !result.products || !result.products.edges) {
+            console.error("Error fetching products: Invalid response structure");
+            break;
+          }
+          
+          const products = result.products.edges;
+          
+          // Queue each product
+          for (const { node } of products) {
+            productQueue.push(node.id);
+            totalQueued++;
+          }
+          
+          console.log(`Queued ${products.length} products (total: ${totalQueued})`);
+          
+          // Update pagination for next batch
+          hasNextPage = result.products.pageInfo.hasNextPage;
+          cursor = result.products.pageInfo.endCursor;
+          
+          // Add a small delay between batches to avoid hitting rate limits on the list API
+          if (hasNextPage) {
+            await setTimeout(550);
+          }
+        } catch (error) {
+          console.error("Error fetching products batch:", error);
+          // Wait a bit longer on error before trying again
+          await setTimeout(5000);
+        }
+      }
+      
+      console.log(`Finished queuing ${totalQueued} products for processing`);
+    };
+    
+    // Run in background
+    fetchAndQueueProducts().catch(error => {
+      console.error("Error in background processing:", error);
+    });
+    
   } catch (error) {
     console.error("Error starting product processing:", error);
-    res.status(500).send("Error starting product processing");
   }
 });
 
@@ -117,14 +195,13 @@ app.get("/process-product/:productId", async (req, res) => {
   try {
     const { productId } = req.params;
 
-    // Run in background
-    collectionGenerator.processProduct(productId).catch(console.error);
-    res
-      .status(200)
-      .send(`Processing product ${productId} started in background`);
+    // Add to queue
+    productQueue.push(productId);
+    
+    res.status(200).send(`Product ${productId} added to processing queue. Current queue size: ${productQueue.length}`);
   } catch (error) {
-    console.error("Error starting product processing:", error);
-    res.status(500).send("Error starting product processing");
+    console.error("Error queueing product:", error);
+    res.status(500).send("Error queueing product");
   }
 });
 
