@@ -204,38 +204,6 @@ function createCollectionDetails(combination, metafieldDefinitions = {}) {
 }
 
 /**
- * Check if collection with similar rules already exists
- * @param {Array} rules - Collection rules to check
- * @param {Array} existingCollections - List of existing smart collections
- * @returns {Boolean} True if similar collection exists
- */
-function doesSimilarCollectionExist(rules, existingCollections) {
-  for (const collection of existingCollections) {
-    if (!collection.rules) continue;
-
-    // If rules length doesn't match, this isn't the same collection
-    if (collection.rules.length !== rules.length) continue;
-
-    // Check if all rules match
-    const allRulesMatch = rules.every((newRule) => {
-      return collection.rules.some(
-        (existingRule) =>
-          existingRule.column === newRule.column &&
-          existingRule.relation === newRule.relation &&
-          existingRule.condition === newRule.condition &&
-          // If using metafield, also check condition_object_id
-          (newRule.column !== "product_metafield_definition" ||
-            existingRule.condition_object_id === newRule.condition_object_id)
-      );
-    });
-
-    if (allRulesMatch) return true;
-  }
-
-  return false;
-}
-
-/**
  * Process a product to create attribute-based collections
  * @param {String|Object} productIdOrObj - Shopify product ID or product object
  */
@@ -255,7 +223,7 @@ async function processProduct(productIdOrObj) {
     const metafieldDefinitions = await getProductMetafieldDefinitions();
 
     // Get existing collections to check for duplicates
-    const existingCollections = await shopifyApi.getExistingSmartCollections();
+    const existingCollections = await shopifyApi.getExistingSmartCollectionsGraphQL();
 
     // Generate all attribute combinations
     const combinations = generateAttributeCombinations(product);
@@ -274,7 +242,7 @@ async function processProduct(productIdOrObj) {
 
       // Check if similar collection already exists
       if (
-        doesSimilarCollectionExist(collectionDetails.rules, existingCollections)
+        doesSimilarCollectionExistGraphQL(collectionDetails.rules, existingCollections)
       ) {
         console.log(`Collection already exists: ${collectionDetails.title}`);
         continue;
@@ -290,6 +258,44 @@ async function processProduct(productIdOrObj) {
   }
 }
 
+/**
+ * Check if collection with similar rules already exists (GraphQL version)
+ * @param {Array} rules - Collection rules to check
+ * @param {Array} existingCollections - List of existing smart collections from GraphQL
+ * @returns {Boolean} True if similar collection exists
+ */
+function doesSimilarCollectionExistGraphQL(rules, existingCollections) {
+  for (const collection of existingCollections) {
+    // Skip collections without ruleSet
+    if (!collection.ruleSet || !collection.ruleSet.rules) continue;
+
+    // If rules length doesn't match, this isn't the same collection
+    if (collection.ruleSet.rules.length !== rules.length) continue;
+
+    // Check if all rules match
+    const allRulesMatch = rules.every((newRule) => {
+      // Convert REST rule format to uppercase column names for comparison with GraphQL
+      const newRuleColumn = newRule.column.toUpperCase();
+      const newRuleRelation = newRule.relation.toUpperCase();
+      
+      return collection.ruleSet.rules.some(
+        (existingRule) =>
+          existingRule.column === newRuleColumn &&
+          existingRule.relation === newRuleRelation &&
+          existingRule.condition === newRule.condition &&
+          // For metafield rules, check conditionObject
+          (newRuleColumn !== "PRODUCT_METAFIELD_DEFINITION" ||
+           (existingRule.conditionObject && 
+            existingRule.conditionObject.metafieldDefinition && 
+            existingRule.conditionObject.metafieldDefinition.id.includes(newRule.condition_object_id)))
+      );
+    });
+
+    if (allRulesMatch) return true;
+  }
+
+  return false;
+}
 
 /**
  * Process all existing products to create attribute-based collections using GraphQL
@@ -792,7 +798,7 @@ module.exports = {
   processAllExistingProducts,
   generateAttributeCombinations,
   createCollectionDetails,
-  doesSimilarCollectionExist,
+  doesSimilarCollectionExistGraphQL,
   extractProductAttributes,
   getProductMetafieldDefinitions,
   cleanupDuplicateCollections,

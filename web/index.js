@@ -76,7 +76,7 @@ const productQueue = new Queue(async (productId, cb) => {
 
 // Optional: Track queue statistics
 productQueue.on('task_finish', (taskId, result, stats) => {
-  console.log(`Task ${taskId} finished in ${stats.elapsed}ms. With result: ${result}. Queue size: ${productQueue.length}`);
+  console.log(`Task ${taskId} finished in ${stats.elapsed}ms. With result: ${JSON.stringify(result)}. Queue size: ${productQueue.length}`);
 });
 
 productQueue.on('task_failed', (taskId, err, stats) => {
