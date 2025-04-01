@@ -91,8 +91,9 @@ const App = () => {
       try {
         setLoading(true);
         
-        // Determine the base URL (works in both development and production)
-        const baseUrl = 'https://shopify-shop-by-specs.onrender.com';  // Remove trailing slash
+        // Get the base URL from the data attribute on the container
+        const container = document.getElementById('container');
+        const baseUrl = container?.dataset?.apiBaseUrl || 'https://shopify-shop-by-specs.onrender.com';
           
         const response = await fetch(`${baseUrl}/related-collections/${collectionHandle}`, {
           method: 'GET',
@@ -380,6 +381,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (element) {
       container = element;
       console.log(`Container found with selector: ${selector}`);
+      // Log the API base URL from data attribute if present
+      if (element.dataset.apiBaseUrl) {
+        console.log(`Using API base URL from theme settings: ${element.dataset.apiBaseUrl}`);
+      }
       break;
     }
   }

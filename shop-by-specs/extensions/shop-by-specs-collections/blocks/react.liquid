@@ -1,10 +1,18 @@
-<div id="container"></div>
+<div id="container" data-api-base-url="{{ block.settings.api_base_url }}"></div>
 
 {% schema %}
   {
     "name": "React Related Collections",
     "target": "section",
     "javascript": "react-extension.js",
-    "settings": []
+    "settings": [
+      {
+        "type": "text",
+        "id": "api_base_url",
+        "label": "API Base URL",
+        "default": "https://shopify-shop-by-specs.onrender.com",
+        "info": "The base URL for the related collections API"
+      }
+    ]
   }
 {% endschema %}
