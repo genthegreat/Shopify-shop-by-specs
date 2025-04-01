@@ -68,7 +68,7 @@ const productQueue = new Queue(async (productId, cb) => {
     cb(error);
   }
 }, {
-  concurrent: 3, // Process three product at a time
+  concurrent: 1, // Process one product at a time
   afterProcessDelay: 500, // Ensure 500ms between API calls (2 per second max)
   maxRetries: 3, // Retry failed tasks
   retryDelay: 1000, // Wait 1 second between retries
