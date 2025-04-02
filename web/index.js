@@ -265,12 +265,25 @@ app.get("/related-collections/:collectionHandle", async (req, res) => {
   }
 });
 
+// Route to fetch all collections
 app.get("/all-collections", async (req, res) => {
   try {
     const collections = await shopifyApi.getExistingSmartCollectionsGraphQL();
     res.status(200).json(collections);
   } catch (error) {
     console.error(`Error fetching all collections:`, error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Route to fetch a single collection
+app.get("/collection/:collectionHandle", async (req, res) => {
+  try {
+    const { collectionHandle } = req.params;
+    const collection = await shopifyApi.getCollectionByHandle(collectionHandle);
+    res.status(200).json(collection);
+  } catch (error) {
+    console.error(`Error fetching collection:`, error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

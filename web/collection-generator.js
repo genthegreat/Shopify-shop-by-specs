@@ -671,12 +671,36 @@ async function getRelatedCollections(collectionHandle) {
     }
     
     // Always include parts collections
-    related.parts = [
-      { title: "Genie Parts", handle: "genie-parts" },
-      { title: "JLG Parts", handle: "jlg-parts" },
-      { title: "Skyjack Parts", handle: "skyjack-parts" },
-      { title: "Haulotte Parts", handle: "haulotte-parts" }
+    const partsCollections = [
+      "genie-parts", 
+      "jlg-parts", 
+      "skyjack-parts", 
+      "haulotte-parts"
     ];
+
+    // Fetch each parts collection to get its image
+    related.parts = [];
+    for (const partHandle of partsCollections) {
+      try {
+        const partCollection = await shopifyApi.getCollectionByHandle(partHandle);
+        if (partCollection) {
+          const imageUrl = getCollectionImageUrl(partCollection);
+          related.parts.push({
+            title: partCollection.title || partHandle.replace('-parts', ' Parts'),
+            handle: partHandle,
+            image: imageUrl
+          });
+        }
+      } catch (error) {
+        console.log(`Error fetching parts collection ${partHandle}:`, error);
+        // Fallback to the collection without an image
+        related.parts.push({
+          title: partHandle.replace('-parts', ' Parts').replace(/(^|\s)\S/g, l => l.toUpperCase()),
+          handle: partHandle,
+          image: null
+        });
+      }
+    }
     
     console.log(`Completed finding related collections for: ${collectionHandle}`);
     return related;
