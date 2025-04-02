@@ -14,13 +14,18 @@ const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.SHOPIFY_WEBHOOK_SECRET;
 const SITE_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
+// Get allowed origins from environment variables
+const envAllowedOrigins = process.env.ALLOWED_ORIGINS || '';
+const additionalOrigins = envAllowedOrigins ? envAllowedOrigins.split(',').map(origin => origin.trim()) : [];
+
 // Middleware
 app.use(cors({
   origin: [
     /\.myshopify\.com$/,  // Allow all Shopify store domains
     'https://prince-kwesi-dev.myshopify.com',  // Your specific store
     'https://cdn.shopify.com',
-    /localhost:\d+$/  // Local development
+    /localhost:\d+$/,  // Local development
+    ...additionalOrigins  // Add origins from environment variable
   ],
   methods: ['GET', 'POST', 'OPTIONS'],
   credentials: true,
@@ -28,11 +33,12 @@ app.use(cors({
 }));
 
 // CORS middleware for all routes as a backup
-app.use((req, res, next) => {
+app.use((req, res, next) => {  
   const allowedOrigins = [
     'https://prince-kwesi-dev.myshopify.com',
-    'https://cdn.shopify.com'
-  ];
+    'https://cdn.shopify.com',
+    ...additionalOrigins
+  ];  
   
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin) || /\.myshopify\.com$/.test(origin)) {
