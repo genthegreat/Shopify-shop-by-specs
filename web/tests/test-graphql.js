@@ -44,12 +44,13 @@ async function testGraphQLProduct() {
     const metafieldDefinitions =
       await collectionGenerator.getProductMetafieldDefinitions();
 
-    // Get existing collections to check for duplicates
-    const existingCollections = await shopifyApi.getExistingSmartCollections();
+    // Get existing collections to check for duplicates using GraphQL
+    const existingCollections = await shopifyApi.getExistingSmartCollectionsGraphQL();
 
     // Show a few combinations
     console.log("Sample combinations:");
-    combinations.slice(0, 30).forEach((combo, i) => {
+    for (let i = 0; i < Math.min(30, combinations.length); i++) {
+      const combo = combinations[i];
       console.log(`[${i + 1}] ${JSON.stringify(combo)}`);
       const details = collectionGenerator.createCollectionDetails(
         combo,
@@ -58,21 +59,21 @@ async function testGraphQLProduct() {
       if (details) {
         console.log(`   Title: ${details.title}`);
 
-        // Check if similar collection already exists
+        // Check if similar collection already exists using GraphQL method
         if (
-          collectionGenerator.doesSimilarCollectionExist(
+          collectionGenerator.doesSimilarCollectionExistGraphQL(
             details.rules,
             existingCollections
           )
         ) {
           console.log(`Collection already exists: ${details.title}`);
-          return; // Changed continue to return since we can't continue across function boundaries
+          continue;
         }
 
-        // Create new collection
-        shopifyApi.createSmartCollection(details);
+        // Create new collection using GraphQL
+        await shopifyApi.createSmartCollectionGraphQL(details);
       }
-    });
+    }
   } catch (error) {
     console.error("Error in test:", error);
   }
