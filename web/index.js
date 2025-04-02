@@ -136,65 +136,65 @@ app.post("/webhooks/products/create", async (req, res) => {
 });
 
 // Route to manually trigger processing all existing products
-app.get("/process-existing-products", async (req, res) => {
-  try {
-    // Respond immediately
-    res.status(200).send("Processing started in background");
+// app.get("/process-existing-products", async (req, res) => {
+//   try {
+//     // Respond immediately
+//     res.status(200).send("Processing started in background");
     
-    // Function to fetch and queue products in batches
-    const fetchAndQueueProducts = async () => {
-      let hasNextPage = true;
-      let cursor = null;
-      let totalQueued = 0;
+//     // Function to fetch and queue products in batches
+//     const fetchAndQueueProducts = async () => {
+//       let hasNextPage = true;
+//       let cursor = null;
+//       let totalQueued = 0;
       
-      while (hasNextPage) {
-        try {
-          console.log(`Fetching batch of products${cursor ? " after " + cursor : ""}...`);
+//       while (hasNextPage) {
+//         try {
+//           console.log(`Fetching batch of products${cursor ? " after " + cursor : ""}...`);
           
-          const result = await shopifyApi.getProductsGraphQL(cursor);
+//           const result = await shopifyApi.getProductsGraphQL(cursor);
           
-          if (!result || !result.products || !result.products.edges) {
-            console.error("Error fetching products: Invalid response structure");
-            break;
-          }
+//           if (!result || !result.products || !result.products.edges) {
+//             console.error("Error fetching products: Invalid response structure");
+//             break;
+//           }
           
-          const products = result.products.edges;
+//           const products = result.products.edges;
           
-          // Queue each product
-          for (const { node } of products) {
-            productQueue.push(node.id);
-            totalQueued++;
-          }
+//           // Queue each product
+//           for (const { node } of products) {
+//             productQueue.push(node.id);
+//             totalQueued++;
+//           }
           
-          console.log(`Queued ${products.length} products (total: ${totalQueued})`);
+//           console.log(`Queued ${products.length} products (total: ${totalQueued})`);
           
-          // Update pagination for next batch
-          hasNextPage = result.products.pageInfo.hasNextPage;
-          cursor = result.products.pageInfo.endCursor;
+//           // Update pagination for next batch
+//           hasNextPage = result.products.pageInfo.hasNextPage;
+//           cursor = result.products.pageInfo.endCursor;
           
-          // Add a small delay between batches to avoid hitting rate limits on the list API
-          if (hasNextPage) {
-            await setTimeout(550);
-          }
-        } catch (error) {
-          console.error("Error fetching products batch:", error);
-          // Wait a bit longer on error before trying again
-          await setTimeout(5000);
-        }
-      }
+//           // Add a small delay between batches to avoid hitting rate limits on the list API
+//           if (hasNextPage) {
+//             await setTimeout(550);
+//           }
+//         } catch (error) {
+//           console.error("Error fetching products batch:", error);
+//           // Wait a bit longer on error before trying again
+//           await setTimeout(5000);
+//         }
+//       }
       
-      console.log(`Finished queuing ${totalQueued} products for processing`);
-    };
+//       console.log(`Finished queuing ${totalQueued} products for processing`);
+//     };
     
-    // Run in background
-    fetchAndQueueProducts().catch(error => {
-      console.error("Error in background processing:", error);
-    });
+//     // Run in background
+//     fetchAndQueueProducts().catch(error => {
+//       console.error("Error in background processing:", error);
+//     });
     
-  } catch (error) {
-    console.error("Error starting product processing:", error);
-  }
-});
+//   } catch (error) {
+//     console.error("Error starting product processing:", error);
+//   }
+// });
 
 // Route to manually process a specific product
 app.get("/process-product/:productId", async (req, res) => {
@@ -233,15 +233,15 @@ app.get("/register-webhooks", async (req, res) => {
 });
 
 // Route to delete all duplicate collections
-app.get("/delete-duplicate-collections", async (req, res) => {
-  try {
-    await collectionGenerator.cleanupDuplicateCollections();
-    res.status(200).send("Duplicate collections deleted successfully");
-  } catch (error) {
-    console.error("Error deleting duplicate collections:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// app.get("/delete-duplicate-collections", async (req, res) => {
+//   try {
+//     await collectionGenerator.cleanupDuplicateCollections();
+//     res.status(200).send("Duplicate collections deleted successfully");
+//   } catch (error) {
+//     console.error("Error deleting duplicate collections:", error);
+//     res.status(500).json({ success: false, error: error.message });
+//   }
+// });
 
 // Route to fetch related collections for a given collection
 app.get("/related-collections/:collectionHandle", async (req, res) => {
@@ -306,13 +306,16 @@ app.options('*', (req, res) => {
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);    
-    console.log(
-      `Visit ${SITE_URL}/process-existing-products to process all existing products`
-    );
+    // console.log(
+    //   `Visit ${SITE_URL}/process-existing-products to process all existing products`
+    // );
     console.log(
       `Visit ${SITE_URL}/register-webhooks?url=${SITE_URL} to register webhooks`
     );
     console.log(
-      `Visit ${SITE_URL}/delete-duplicate-collections to delete duplicate collections`
+      `Visit ${SITE_URL}/related-collections/:collectionsHandle to get a collection's related collections`
     );
+    // console.log(
+    //   `Visit ${SITE_URL}/delete-duplicate-collections to delete duplicate collections`
+    // );
 });
