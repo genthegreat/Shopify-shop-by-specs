@@ -675,7 +675,7 @@ async function getRelatedCollections(collectionHandle) {
       { title: "Genie Parts", handle: "genie-parts" },
       { title: "JLG Parts", handle: "jlg-parts" },
       { title: "Skyjack Parts", handle: "skyjack-parts" },
-      { title: "Haulage Parts", handle: "haulage-parts" }
+      { title: "Haulotte Parts", handle: "haulotte-parts" }
     ];
     
     console.log(`Completed finding related collections for: ${collectionHandle}`);
