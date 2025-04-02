@@ -33,12 +33,14 @@ const TabContent = ({ collections = [] }) => (
   <div className="tab-inner-content">
     <div className="inner-grid">
       {collections.length > 0 ? (
-        collections.map((collection, index) => (
-          <CollectionCard 
-            key={`${collection.handle}-${index}`}
-            title={collection.title}
-            handle={collection.handle}
-            image={collection.image}
+        collections
+          .filter((collection) => collection.image !== null)
+          .map((collection, index) => (
+            <CollectionCard
+              key={`${collection.handle}-${index}`}
+              title={collection.title}
+              handle={collection.handle}
+              image={collection.image}
           />
         ))
       ) : (
