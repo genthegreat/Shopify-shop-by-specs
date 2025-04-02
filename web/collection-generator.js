@@ -240,7 +240,7 @@ async function processProduct(productIdOrObj) {
 
       if (!collectionDetails) continue;
 
-      // Check if similar collection already exists
+      // Check if similar collection already exists using GraphQL method
       if (
         doesSimilarCollectionExistGraphQL(collectionDetails.rules, existingCollections)
       ) {
@@ -248,7 +248,7 @@ async function processProduct(productIdOrObj) {
         continue;
       }
 
-      // Create new collection
+      // Create new collection using GraphQL
       await shopifyApi.createSmartCollectionGraphQL(collectionDetails);
     }
 
@@ -423,7 +423,7 @@ async function cleanupDuplicateCollections() {
     console.log("Starting duplicate collection cleanup...");
     
     // Get all smart collections
-    const allCollections = await shopifyApi.getExistingSmartCollections();
+    const allCollections = await shopifyApi.getExistingSmartCollectionsGraphQL();
     console.log(`Found ${allCollections.length} smart collections total`);
     
     // Group collections by their rule configurations
@@ -432,14 +432,16 @@ async function cleanupDuplicateCollections() {
     // Process each collection
     for (const collection of allCollections) {
       // Skip collections without rules
-      if (!collection.rules || collection.rules.length === 0) continue;
+      if (!collection.ruleSet || !collection.ruleSet.rules || collection.ruleSet.rules.length === 0) continue;
       
       // Create a unique key representing this rule set
       // Sort the rules to ensure consistent key generation
-      const sortedRules = [...collection.rules].sort((a, b) => {
+      const sortedRules = [...collection.ruleSet.rules].sort((a, b) => {
         // First sort by column
-        if (a.column < b.column) return -1;
-        if (a.column > b.column) return 1;
+        const columnA = a.column.toLowerCase();
+        const columnB = b.column.toLowerCase();
+        if (columnA < columnB) return -1;
+        if (columnA > columnB) return 1;
         
         // Then by condition
         if (a.condition < b.condition) return -1;
@@ -449,9 +451,12 @@ async function cleanupDuplicateCollections() {
       });
       
       // Generate a string key from the rule set
-      const ruleKey = sortedRules.map(rule => 
-        `${rule.column}:${rule.relation}:${rule.condition}${rule.condition_object_id ? ':' + rule.condition_object_id : ''}`
-      ).join('|');
+      const ruleKey = sortedRules.map(rule => {
+        const conditionObjectId = rule.conditionObject && 
+                                 rule.conditionObject.metafieldDefinition ? 
+                                 rule.conditionObject.metafieldDefinition.id : '';
+        return `${rule.column}:${rule.relation}:${rule.condition}${conditionObjectId ? ':' + conditionObjectId : ''}`;
+      }).join('|');
       
       // Add to our grouping
       if (!collectionsByRules[ruleKey]) {
@@ -470,14 +475,12 @@ async function cleanupDuplicateCollections() {
       if (collectionsWithSameRules.length > 1) {
         console.log(`Found ${collectionsWithSameRules.length} collections with identical rules:`);
         
-        // Sort by creation date or ID to keep the oldest/first one
+        // Sort by ID to keep the oldest/first one 
+        // (using ID as a proxy since most GraphQL responses don't include created_at)
         collectionsWithSameRules.sort((a, b) => {
-          // If we have created_at timestamps, use those
-          if (a.created_at && b.created_at) {
-            return new Date(a.created_at) - new Date(b.created_at);
-          }
-          // Otherwise sort by ID (assuming lower ID = older)
-          return parseInt(a.id) - parseInt(b.id);
+          const idA = a.id.split('/').pop();
+          const idB = b.id.split('/').pop();
+          return parseInt(idA) - parseInt(idB);
         });
         
         // Keep the first one, mark the rest for deletion
@@ -487,7 +490,9 @@ async function cleanupDuplicateCollections() {
         for (let i = 1; i < collectionsWithSameRules.length; i++) {
           const dupeCollection = collectionsWithSameRules[i];
           console.log(`Will delete: "${dupeCollection.title}" (ID: ${dupeCollection.id})`);
-          collectionsToDelete.push(dupeCollection.id);
+          // Extract numeric ID from GraphQL ID (format: gid://shopify/Collection/ID)
+          const numericId = dupeCollection.id.split('/').pop();
+          collectionsToDelete.push(numericId);
         }
       }
     }
