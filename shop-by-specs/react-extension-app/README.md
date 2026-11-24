@@ -9,3 +9,4 @@ webpack (see `webpack.config.js`) into
 - `npm run build` – production build of the extension bundle.
 - `npm run watch` – rebuild the bundle on file changes.
 - `npm run build-and-deploy` – build, then run `shopify app deploy` from the parent app.
+- `npm run lint` – run ESLint (flat config in `eslint.config.js`).

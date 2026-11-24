@@ -63,7 +63,7 @@ const App = () => {
   // Get current collection handle from URL
   const getCurrentCollectionHandle = () => {
     const path = window.location.pathname;
-    const match = path.match(/\/collections\/([^\/]+)/);
+    const match = path.match(/\/collections\/([^/]+)/);
     return match ? match[1] : null;
   };
 
