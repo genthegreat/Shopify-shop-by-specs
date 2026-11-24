@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "node test-util.js",
+    "test": "node tests/test-util.js",
     "webhook": "node init-webhook.js",
     "process-all": "curl http://localhost:3000/process-existing-products"
   },
